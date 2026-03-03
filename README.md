@@ -69,7 +69,7 @@ colcon build --cmake-args -DCMAKE_CXX_FLAGS='-w'
 export GZ_SIM_RESOURCE_PATH=/home/$USERNAME/PX4-Autopilot/Tools/simulation/gz/models 
 export ROS_WS=/home/$USERNAME/sim_ws
 ```
-If you have any problem with the first build, start only with dancers_msgs
+If you have a with the first build, try to start only with dancers_msgs
 ```bash
 colcon build --cmake-args -DCMAKE_CXX_FLAGS='-w' --select-packages dancers_msgs
 ```

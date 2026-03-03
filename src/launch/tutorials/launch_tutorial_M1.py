@@ -262,8 +262,8 @@ def run_additional_commands_in_tmux(session_id, commands, attach=False):
 def main():
     # --- User parameters ---
     base_params = {
-        "experiment_name": "tutorial_3",
-        "simulation_length": 100,
+        "experiment_name": "tutorial_M1",
+        "simulation_length": 0,
         "sync_window": 8000,       # in us | the duration between two position exchange and clock synchronization between physics and network simulators
         "phy_step_size": 4000,     # in us | the duration of 1 physics simulator simulation loop
         "net_step_size": 4000,     # in us
@@ -278,7 +278,7 @@ def main():
         "phy_ip_server_address": "127.0.0.1",
         "phy_ip_server_port": 10000,
         
-        "robots_number": 4,
+        "robots_number": 1,
 
         "save_compute_time": False,
         
@@ -302,6 +302,10 @@ def main():
             "arena_corner_2": {"x": 10.0, "y": 10.0, "z": 50.0},
         }
     }
+
+    empty_net_connectors_params = {
+        "net_sleep_time": 400,
+    }
     
     initial_position_params = {
         "initial_spacing": 5.0,      # in m | spacing between robots at start (square grid)
@@ -314,10 +318,11 @@ def main():
     gazebo_connector_params = {
         "world_file": "src/physics_connectors/Gazebo/worlds/default.sdf",
         "robot_model": "x500",
-        "path_to_px4_autopilot": f"{os.getenv('HOME')}/PX4-Autopilot-1.16"
+        "path_to_px4_autopilot": f"{os.getenv('HOME')}/PX4-Autopilot"
     }
     
-    base_params.update(networking_params)
+    #base_params.update(networking_params)              # add networking params
+    base_params.update(empty_net_connectors_params)     # Dummy net connector params (no network)
     base_params.update(initial_position_params)
     base_params.update(gazebo_connector_params)
 
@@ -346,7 +351,8 @@ def main():
             print(f"Saved config: {path}")
         instance_id += 1
     
-    network_package_node = "ns3_connector basic_wifi_adhoc"
+    #network_package_node = "ns3_connector basic_wifi_adhoc"             # with network
+    network_package_node = "empty_connector empty_connector_net"       # without network (for single drone)
     physics_package_node = "gazebo_connector gazebo_connector"
     
     # Launch the first exp
@@ -355,9 +361,8 @@ def main():
     additional_cmds = [
         f"ros2 run px4_control waypoint_control --ros-args -p robot_name:=px4_{i} -p use_sim_time:=true" for i in range(base_params["robots_number"])
     ] + [
-        "gz sim -g",
-        "MicroXRCEAgent udp4 -p 8888",
-        "QGroundControl.AppImage"
+        "gz sim -g",    # -s to launch gz headless, -g to launch gz client (GUI)
+        "MicroXRCEAgent udp4 -p 8888"
     ]
     run_additional_commands_in_tmux(session_id=1, commands=additional_cmds, attach=True)
 
