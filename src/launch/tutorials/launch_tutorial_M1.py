@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
 import yaml
 import shutil
@@ -165,6 +166,7 @@ def launch_sim_components_in_tmux(
         ]
         if not headless:
             commands.append(f"ros2 run rviz2 rviz2 -d src/launch/tutorials/rviz_tutorial_2.rviz --ros-args -p use_sim_time:=true")
+        commands.append(f"ros2 run rviz2 rviz2 -d src/launch/tutorials/rviz2_config.rviz --ros-args -p use_sim_time:=true")
         
     if len(commands) < 1:
         raise ValueError("You must provide at least one command to run.")
@@ -260,6 +262,18 @@ def run_additional_commands_in_tmux(session_id, commands, attach=False):
 
 
 def main():
+    # --- CLI argument: world name ---
+    parser = argparse.ArgumentParser(description="DANCERS tutorial M1 launcher")
+    parser.add_argument(
+        "--world", "-w",
+        type=str,
+        default="default",
+        help="Gazebo world name (must match <world name='...'> in the SDF). "
+             "Available: default, walls, forest. (default: %(default)s)"
+    )
+    args = parser.parse_args()
+    world_name = args.world
+
     # --- User parameters ---
     base_params = {
         "experiment_name": "tutorial_M1",
@@ -316,8 +330,8 @@ def main():
     }
 
     gazebo_connector_params = {
-        "world_file": "src/physics_connectors/Gazebo/worlds/default.sdf",
-        "robot_model": "x500",
+        "world_file": f"src/physics_connectors/Gazebo/worlds/{world_name}.sdf",
+        "robot_model": "x500_lidar_2d",
         "path_to_px4_autopilot": f"{os.getenv('HOME')}/PX4-Autopilot"
     }
     
@@ -361,8 +375,24 @@ def main():
     additional_cmds = [
         f"ros2 run px4_control waypoint_control --ros-args -p robot_name:=px4_{i} -p use_sim_time:=true" for i in range(base_params["robots_number"])
     ] + [
+        # 1. Bridge the Lidar Scan (GZ -> ROS /scan)
+        f"ros2 run ros_gz_bridge parameter_bridge '/world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan' --ros-args -r /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true",
+        
+        # 2. Bridge the Clock (Necessary for sim_time synchronization)
+        "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
+
+        # 3. Run the custom gz_pose_relay to publish the drone pose as TF (no bridge, direct gz-transport subscription)
+        f"python3 src/launch/tutorials/gz_pose_relay.py --ros-args -p gz_world:={world_name} -p use_sim_time:=true",
+        
+        # 4. Static TF: Connect drone base_link to the sensor frame
+        "ros2 run tf2_ros static_transform_publisher 0.12 0 0.26 0 0 0 x500_lidar_2d_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true",
+        
+        f"python3 src/launch/tutorials/gz_pose_relay.py --ros-args -p gz_world:={world_name} -p use_sim_time:=true",
+
         "gz sim -g",    # -s to launch gz headless, -g to launch gz client (GUI)
         "MicroXRCEAgent udp4 -p 8888"
+
+        #"sleep 10 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=src/launch/tutorials/slam_params.yaml use_sim_time:=true"
     ]
     run_additional_commands_in_tmux(session_id=1, commands=additional_cmds, attach=True)
 
