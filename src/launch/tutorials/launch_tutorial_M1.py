@@ -331,7 +331,7 @@ def main():
 
     gazebo_connector_params = {
         "world_file": f"src/physics_connectors/Gazebo/worlds/{world_name}.sdf",
-        "robot_model": "x500_lidar_2d",
+        "robot_model": "x500_gimbal_lidar",
         "path_to_px4_autopilot": f"{os.getenv('HOME')}/PX4-Autopilot"
     }
     
@@ -376,7 +376,7 @@ def main():
         f"ros2 run px4_control waypoint_control --ros-args -p robot_name:=px4_{i} -p use_sim_time:=true" for i in range(base_params["robots_number"])
     ] + [
         # 1. Bridge the Lidar Scan (GZ -> ROS /scan)
-        f"ros2 run ros_gz_bridge parameter_bridge '/world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan' --ros-args -r /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true",
+        f"ros2 run ros_gz_bridge parameter_bridge '/world/{world_name}/model/x500_gimbal_lidar_0/link/lidar_link/sensor/lidar/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan' --ros-args -r /world/{world_name}/model/x500_gimbal_lidar_0/link/lidar_link/sensor/lidar/scan:=/scan -p use_sim_time:=true",
         
         # 2. Bridge the Clock (Necessary for sim_time synchronization)
         "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
@@ -386,8 +386,6 @@ def main():
         
         # 4. Static TF: Connect drone base_link to the sensor frame
         "ros2 run tf2_ros static_transform_publisher 0.12 0 0.26 0 0 0 x500_lidar_2d_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true",
-        
-        f"python3 src/launch/tutorials/gz_pose_relay.py --ros-args -p gz_world:={world_name} -p use_sim_time:=true",
 
         "gz sim -g",    # -s to launch gz headless, -g to launch gz client (GUI)
         "MicroXRCEAgent udp4 -p 8888"

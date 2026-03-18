@@ -3,7 +3,7 @@ slam_toolbox:
     solver_plugin: solver_plugins::CeresSolver
     odom_frame: world
     map_frame: map
-    base_frame: x500_lidar_2d_0/link/base_link
+    base_frame: x500_gimbal_lidar_0/link/base_link
     scan_topic: /scan
     use_sim_time: true
     mode: mapping
