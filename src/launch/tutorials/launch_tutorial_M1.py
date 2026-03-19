@@ -250,7 +250,7 @@ def run_additional_commands_in_tmux(session_id, commands, attach=False):
 
 
     for i, cmd in enumerate(commands, start=1):
-        subprocess.run(["tmux", "split-window", "-t", session_name, cmd], check=True)
+        subprocess.run(["tmux", "split-window", "-d", "-t", session_name, cmd], check=True)
         subprocess.run(["tmux", "select-layout", "-t", session_name, "tiled"], check=True)
 
         print(f"Launched extra command in new pane: {cmd}")
@@ -296,7 +296,7 @@ def main():
 
         "save_compute_time": False,
         
-        "real_time_factor": 2.0
+        "real_time_factor": 200.0
     }
         
     networking_params = {
@@ -371,28 +371,35 @@ def main():
     
     # Launch the first exp
     launch_sim_components_in_tmux(configs_paths[0], network_package_node, physics_package_node, session_id=1, remain_on_exit=True, headless=True, attach=False)
+
+    slam_params_path = os.path.abspath("src/launch/tutorials/slam_params.yaml")
     
-    additional_cmds = [
+    additional_cmds_display = [
         f"ros2 run px4_control waypoint_control --ros-args -p robot_name:=px4_{i} -p use_sim_time:=true" for i in range(base_params["robots_number"])
     ] + [
-        # 1. Bridge the Lidar Scan (GZ -> ROS /scan)
-        f"ros2 run ros_gz_bridge parameter_bridge '/world/{world_name}/model/x500_gimbal_lidar_0/link/lidar_link/sensor/lidar/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan' --ros-args -r /world/{world_name}/model/x500_gimbal_lidar_0/link/lidar_link/sensor/lidar/scan:=/scan -p use_sim_time:=true",
+        # 3. Run the custom gz_pose_relay to publish the drone pose as TF (no bridge, direct gz-transport subscription) to hide in tmux because useless to see
+        f"python3 src/launch/tutorials/gz_pose_relay.py --ros-args -p gz_world:={world_name} -p target_model:=x500_gimbal_lidar_0 -p parent_frame:=world -p child_frame:=x500_gimbal_lidar_0/link/base_link -p use_sim_time:=true",
         
-        # 2. Bridge the Clock (Necessary for sim_time synchronization)
-        "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
-
-        # 3. Run the custom gz_pose_relay to publish the drone pose as TF (no bridge, direct gz-transport subscription)
-        f"python3 src/launch/tutorials/gz_pose_relay.py --ros-args -p gz_world:={world_name} -p use_sim_time:=true",
-        
-        # 4. Static TF: Connect drone base_link to the sensor frame
-        "ros2 run tf2_ros static_transform_publisher 0.12 0 0.26 0 0 0 x500_lidar_2d_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true",
+        # 5. Launch SLAM Toolbox in online async mode - to hide in tmux because useless to see
+        f"ros2 launch slam_toolbox online_async_launch.py slam_params_file:={slam_params_path} use_sim_time:=true",
 
         "gz sim -g",    # -s to launch gz headless, -g to launch gz client (GUI)
         "MicroXRCEAgent udp4 -p 8888"
-
-        #"sleep 10 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=src/launch/tutorials/slam_params.yaml use_sim_time:=true"
     ]
-    run_additional_commands_in_tmux(session_id=1, commands=additional_cmds, attach=True)
+
+    additional_cmds_hidden = [
+        # 1. Bridge the Lidar Scan (GZ -> ROS /scan) to hide in tmux because useless to see
+        f"ros2 run ros_gz_bridge parameter_bridge /world/{world_name}/model/x500_gimbal_lidar_0/link/lidar_link/sensor/lidar/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{world_name}/model/x500_gimbal_lidar_0/link/lidar_link/sensor/lidar/scan:=/scan -p use_sim_time:=true",
+
+        # 2. Bridge the Clock (Necessary for sim_time synchronization) to hide in tmux because useless to see
+        "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock --ros-args -p use_sim_time:=true",
+
+        # 4. Static TF: Connect drone base_link to the lidar frame - to hide in tmux because useless to see
+        "ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 x500_gimbal_lidar_0/link/base_link x500_gimbal_lidar_0/lidar_link/lidar --ros-args -p use_sim_time:=true"
+    ]
+    # Launch “hidden” bridge/TF commands first in detached panes, then attach for display commands.
+    run_additional_commands_in_tmux(session_id=1, commands=additional_cmds_hidden, attach=False)
+    run_additional_commands_in_tmux(session_id=1, commands=additional_cmds_display, attach=True)
 
 if __name__ == "__main__":
     main()
