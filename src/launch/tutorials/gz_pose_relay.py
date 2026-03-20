@@ -37,6 +37,7 @@ from tf2_ros import TransformBroadcaster
 
 from gz.transport14 import Node as GzNode   # was transport13
 from gz.msgs.pose_v_pb2 import Pose_V
+import math
 
 class GzPoseRelay(Node):
 
@@ -94,6 +95,7 @@ class GzPoseRelay(Node):
             if p.name != self.target_model:
                 continue
 
+            # --- TF Réelle ---
             t = TransformStamped()
             t.header.stamp.sec     = msg.header.stamp.sec
             t.header.stamp.nanosec = msg.header.stamp.nsec
@@ -111,6 +113,32 @@ class GzPoseRelay(Node):
 
             with self._lock:
                 self.tf_broadcaster.sendTransform(t)
+            
+            # --- TF Stabilisée ---
+            ts = TransformStamped()
+            ts.header.stamp = t.header.stamp
+            ts.header.frame_id = self.parent_frame
+            ts.child_frame_id = self.child_frame + "_stabilized" # ex: .../base_link_stabilized
+
+            ts.transform.translation = t.transform.translation # Même position
+
+            # On annule Roll et Pitch, on ne garde que le Yaw
+            # Pour cela, on convertit le quaternion en Euler, on reset, et on revient
+            q = p.orientation
+            # Calcul simplifié du Yaw uniquement à partir du quaternion
+            siny_cosp = 2 * (q.w * q.z + q.x * q.y)
+            cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
+            yaw = math.atan2(siny_cosp, cosy_cosp)
+
+            # Nouveau quaternion (Rotation pure autour de Z)
+            ts.transform.rotation.x = 0.0
+            ts.transform.rotation.y = 0.0
+            ts.transform.rotation.z = math.sin(yaw / 2)
+            ts.transform.rotation.w = math.cos(yaw / 2)
+
+            with self._lock:
+                self.tf_broadcaster.sendTransform(ts)
+
             return  # stop after the first match
 
         self.get_logger().warn(
