@@ -40,7 +40,7 @@ class ScanStabilizer(Node):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-        self.robot_frame = 'x500_lidar_2d_0/link/base_link'
+        #self.robot_frame = 'x500_lidar_2d_0/link/base_link'
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
 
@@ -64,7 +64,8 @@ class ScanStabilizer(Node):
                 'world', 
                 msg.header.frame_id, 
                 msg.header.stamp)
-        except Exception: 
+        except Exception as e:
+            self.get_logger().warn(f"TF lookup failed: {e}")
             return
         
         # --- Pose Drone ---
@@ -143,7 +144,7 @@ class ScanStabilizer(Node):
         new_ranges[unique_idx] = np.minimum.reduceat(dist_sorted, first)
         
         # Small gap interpolation
-        ranges = interpolate_small_gaps(new_ranges, max_gap=3)
+        new_ranges = interpolate_small_gaps(new_ranges, max_gap=3)
 
         # Publish
         out = deepcopy(msg)

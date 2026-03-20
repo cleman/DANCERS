@@ -10,6 +10,24 @@ import shutil
 import shlex
 import subprocess
 import time
+import signal
+import sys
+import atexit
+
+# Liste globale pour suivre les processus Popen
+background_processes = []
+
+def cleanup_processes(*args):
+    """Tue tous les processus lancés en arrière-plan."""
+    print(f"\nArrêt de {len(background_processes)} processus d'arrière-plan...")
+    for p in background_processes:
+        try:
+            # Envoie SIGTERM au groupe de processus
+            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+        except Exception:
+            pass
+    print("Nettoyage terminé.")
+    # On ne quitte pas forcément ici pour laisser le reste du script finir
 
 def prepare_experiment_folder(experiment_name):
     """
@@ -260,7 +278,69 @@ def run_additional_commands_in_tmux(session_id, commands, attach=False):
         print(f"Attaching to tmux session '{session_name}'...")
         subprocess.run(["tmux", "attach-session", "-t", session_name])
 
+def run_commands_in_background(session_id, commands):
+    """
+    Lance les commandes en arrière-plan avec nettoyage préventif.
+    Cible les processus 'hidden' comme les bridges et les static TFs.
+    """
+    global background_processes
+    env = os.environ.copy()
+    env["ROS_DOMAIN_ID"] = str(session_id)
+    
+    # Configuration des dossiers de logs
+    log_dir = "dancers_data/logs"
+    os.makedirs(log_dir, exist_ok=True)
+
+    # --- 1. NETTOYAGE DES ANCIENS PROCESSUS ---
+    print("Nettoyage des anciens processus et de la mémoire partagée...")
+    # Tue les processus par nom pour éviter les doublons invisibles
+    process_names = ["ros_gz_bridge", "static_transform_publisher", "scan_stabilizer.py", "gz_pose_relay.py"]
+    for name in process_names:
+        subprocess.run(["pkill", "-f", name], stderr=subprocess.DEVNULL)
+    
+    # --- 2. NETTOYAGE CRITIQUE DE FASTDDS (Erreur /map) ---
+    # On supprime les fichiers de segments SHM qui restent bloqués après un crash
+    shm_path = "/dev/shm"
+    if os.path.exists(shm_path):
+        try:
+            for filename in os.listdir(shm_path):
+                if "fastdds" in filename.lower():
+                    file_path = os.path.join(shm_path, filename)
+                    os.remove(file_path)
+        except Exception as e:
+            print(f"Note: Erreur lors du nettoyage de /dev/shm : {e}")
+
+    # --- 3. LANCEMENT DES COMMANDES ---
+    for i, cmd in enumerate(commands):
+        # Création d'un fichier log unique par commande
+        log_file = open(f"{log_dir}/background_cmd_{i}.log", "w")
+        
+        # Utilisation de shell=True pour supporter les redirections ROS 2 complexes
+        # preexec_fn=os.setpgrp est vital pour pouvoir tuer tout le groupe plus tard
+        p = subprocess.Popen(
+            cmd, 
+            env=env, 
+            stdout=log_file, 
+            stderr=log_file, 
+            shell=True,
+            preexec_fn=os.setpgrp 
+        )
+        
+        background_processes.append(p)
+        
+        # Extraction du nom simplifié pour l'affichage (ex: ros2 run package node -> node)
+        short_name = cmd.split()[2] if len(cmd.split()) > 2 else "cmd"
+        print(f"Lancement background [PID {p.pid}]: {short_name}")
+    
+    return background_processes
+
 def main():
+    # Enregistre le nettoyage à la sortie normale du script
+    atexit.register(cleanup_processes)
+    # Enregistre le nettoyage si on fait Ctrl+C dans le terminal
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+
     # --- CLI argument: world name ---
     parser = argparse.ArgumentParser(description="DANCERS tutorial M1 launcher")
     parser.add_argument(
@@ -389,6 +469,11 @@ def main():
         "MicroXRCEAgent udp4 -p 8888"
     ]
 
+    cmd_clock = [
+        # 2. Bridge the Clock (Necessary for sim_time synchronization) to hide in tmux because useless to see
+        "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock --ros-args -p use_sim_time:=true"
+    ]
+
     cmd_bridge_scan = ""
     cmd_static_tf_lidar = ""
     if robot_name == "x500_gimbal_lidar":
@@ -398,21 +483,19 @@ def main():
         cmd_bridge_scan = f"ros2 run ros_gz_bridge parameter_bridge /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true"
         cmd_static_tf_lidar = f"ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 {robot_name}_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true"
 
+    cmd_background = [
+        "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock --ros-args -p use_sim_time:=true",
 
-    additional_cmds_hidden = [
         # 1. Bridge the Lidar Scan (GZ -> ROS /scan) to hide in tmux because useless to see
         cmd_bridge_scan,
-
-        # 2. Bridge the Clock (Necessary for sim_time synchronization) to hide in tmux because useless to see
-        "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock --ros-args -p use_sim_time:=true",
 
         # 4. Static TF: Connect drone base_link to the lidar frame - to hide in tmux because useless to see
         cmd_static_tf_lidar,
 
-        "python3 src/launch/tutorials/scan_stabilizer.py --ros-args -p z_threshold:=0.15 -p use_sim_time:=true"
+        #"python3 src/launch/tutorials/scan_stabilizer.py --ros-args -p z_threshold:=0.15 -p use_sim_time:=true"
     ]
-    # Launch “hidden” bridge/TF commands first in detached panes, then attach for display commands.
-    run_additional_commands_in_tmux(session_id=1, commands=additional_cmds_hidden, attach=False)
+    #run_commands_in_background(session_id=1, commands=cmd_clock)
+    run_commands_in_background(session_id=1, commands=cmd_background)
     run_additional_commands_in_tmux(session_id=1, commands=additional_cmds_display, attach=True)
 
 if __name__ == "__main__":
