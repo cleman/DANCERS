@@ -4,26 +4,44 @@ from sensor_msgs.msg import LaserScan
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 import tf2_ros
 import tf_transformations
-import math
 import numpy as np
 from copy import deepcopy
+
+def interpolate_small_gaps(ranges, max_gap=3):
+        ranges = np.array(ranges)
+        valid = np.isfinite(ranges)
+
+        i = 0
+        while i < len(ranges):
+            if not valid[i]:
+                start = i
+                while i < len(ranges) and not valid[i]:
+                    i += 1
+                end = i
+
+                if start > 0 and end < len(ranges):
+                    if (end - start) <= max_gap:
+                        ranges[start:end] = np.linspace(
+                            ranges[start-1],
+                            ranges[end],
+                            end - start
+                        )
+            i += 1
+
+        return ranges
 
 class ScanStabilizer(Node):
     def __init__(self):
         super().__init__('scan_stabilizer')
 
+        # Params
         self.declare_parameter('z_threshold', 0.15)
-        self.declare_parameter('target_frame', 'world')
-
-        # Paramètres
-        self.target_frame = self.get_parameter('target_frame').value
-        self.robot_frame = 'x500_lidar_2d_0/link/base_link'
-        self.z_threshold = self.get_parameter('z_threshold').value # Tolérance de 15cm pour filtrer le sol
+        self.z_threshold = self.get_parameter('z_threshold').value
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.robot_frame = 'x500_lidar_2d_0/link/base_link'
 
-        # Gestion de la QoS incompatible
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
 
         self.sub = self.create_subscription(LaserScan, '/scan', self.callback, qos)
@@ -31,70 +49,107 @@ class ScanStabilizer(Node):
 
         self.add_on_set_parameters_callback(self.param_callback)
 
+
     def param_callback(self, params):
         for p in params:
             if p.name == 'z_threshold':
                 self.z_threshold = p.value
         return rclpy.parameter.ParameterEventHandler()._result_successful()
 
+
     def callback(self, msg):
         try:
             # Drone dans le repère Monde
-            tf = self.tf_buffer.lookup_transform('world', msg.header.frame_id, msg.header.stamp)
-        except Exception: return
-
-        pos_drone = np.array([tf.transform.translation.x, tf.transform.translation.y, tf.transform.translation.z])
-        mat_rot = tf_transformations.quaternion_matrix([tf.transform.rotation.x, tf.transform.rotation.y, 
-                                                        tf.transform.rotation.z, tf.transform.rotation.w])
-
-        new_ranges = [float('inf')] * len(msg.ranges)
-
-        #yaw_drone = math.atan2(mat_rot[1, 0], mat_rot[0, 0])
-        _, _, yaw_drone = tf_transformations.euler_from_quaternion([
-                tf.transform.rotation.x,
-                tf.transform.rotation.y,
-                tf.transform.rotation.z,
-                tf.transform.rotation.w
-            ])
+            tf = self.tf_buffer.lookup_transform(
+                'world', 
+                msg.header.frame_id, 
+                msg.header.stamp)
+        except Exception: 
+            return
         
-        for i, r in enumerate(msg.ranges):
-            if math.isinf(r) or r < msg.range_min: continue
+        # --- Pose Drone ---
+        pos = np.array([
+            tf.transform.translation.x,
+            tf.transform.translation.y,
+            tf.transform.translation.z
+        ])
 
-            # 1. Position du point dans le repère Monde (Calcul complet)
-            angle = msg.angle_min + i * msg.angle_increment
-            P_lidar = np.array([r * math.cos(angle), r * math.sin(angle), 0.0, 1.0])
-            P_world = (mat_rot @ P_lidar)[:3] + pos_drone
+        quat = [
+            tf.transform.rotation.x,
+            tf.transform.rotation.y,
+            tf.transform.rotation.z,
+            tf.transform.rotation.w
+        ]
+        
+        mat_rot = tf_transformations.quaternion_matrix(quat)
 
-            # 3. CALCUL DE LA POSITION RELATIVE STABILISÉE
-            # On cherche les coordonnées (x, y) du point par rapport au drone dans le plan World
-            dx = P_world[0] - pos_drone[0]
-            dy = P_world[1] - pos_drone[1]
+        # Drone Yaw
+        _, _, yaw_drone = tf_transformations.euler_from_quaternion(quat)
+        
+        # Data preparation
+        ranges = np.array(msg.ranges)
+        angles = msg.angle_min + np.arange(len(msg.ranges)) * msg.angle_increment
+        
+        # Filter valid ranges
+        valid = np.isfinite(ranges) & (ranges > msg.range_min)
+        if np.sum(valid) == 0:
+            return
+        
+        ranges = ranges[valid]
+        angles = angles[valid]
 
-            # 2. FILTRE SOL (Z-check)
-            if P_world[2] > self.z_threshold:
-                # 4. DISTANCE ET ANGLE RÉELS (Projetés)
-                dist_horiz = math.sqrt(dx**2 + dy**2)
-                angle_world = math.atan2(dy, dx) 
+        # LiDAR points
+        x = ranges * np.cos(angles)
+        y = ranges * np.sin(angles)
 
-                # 5. RE-INDEXATION RELATIVE AU YAW DU DRONE
-                # On ramène l'angle monde dans le référentiel local du drone (angle 0 = devant)
-                angle_relatif = angle_world - yaw_drone
-                
-                # Normalisation entre -pi et pi (Wrap to pi)
-                angle_relatif = math.atan2(math.sin(angle_relatif), math.cos(angle_relatif))
+        P_lidar = np.vstack((x, y, np.zeros_like(x), np.ones_like(x)))  # (4, N)
 
-                # Calcul de l'index dans le repère du message LaserScan
-                index = int((angle_relatif - msg.angle_min) / msg.angle_increment)
-                
-                # Gestion des bords du tableau
-                if 0 <= index < len(new_ranges):
-                    new_ranges[index] = min(new_ranges[index], dist_horiz)
-                #new_ranges[i] = min(new_ranges[index], dist_horiz)
+        # World projection
+        P_world = (mat_rot @ P_lidar)[:3, :] + pos.reshape(3, 1)  # (3, N)
 
-        # 4. ENVOI AVEC LA FRAME STABILISÉE
+        # Z-filter
+        mask = P_world[2, :] > self.z_threshold
+        if np.sum(mask) == 0:
+            return
+        
+        P_world = P_world[:, mask]
+
+        # Horizontal coordinates
+        dx = P_world[0, :] - pos[0]
+        dy = P_world[1, :] - pos[1]
+
+        dist = np.sqrt(dx**2 + dy**2)
+        angle_world = np.arctan2(dy, dx)
+
+        # Relative angle
+        angle_rel = angle_world - yaw_drone
+        angle_rel = np.arctan2(np.sin(angle_rel), np.cos(angle_rel))
+
+        # Indexation
+        indices = ((angle_rel - msg.angle_min) / msg.angle_increment).astype(np.int32)
+
+        valid_idx = (indices >= 0) & (indices < len(msg.ranges))
+        indices = indices[valid_idx]
+        dist = dist[valid_idx]
+
+        # Scan reconstruction
+        new_ranges = np.full(len(msg.ranges), np.inf)
+
+        order = np.argsort(indices)
+        indices_sorted = indices[order]
+        dist_sorted = dist[order]
+
+        unique_idx, first = np.unique(indices_sorted, return_index=True)
+        new_ranges[unique_idx] = np.minimum.reduceat(dist_sorted, first)
+        
+        # Small gap interpolation
+        ranges = interpolate_small_gaps(new_ranges, max_gap=3)
+
+        # Publish
         out = deepcopy(msg)
         out.header.frame_id = "x500_lidar_2d_0/link/base_link_stabilized" # Nom de la frame créée dans le relay
-        out.ranges = new_ranges
+        out.ranges = new_ranges.tolist()
+
         self.pub.publish(out)
 
 

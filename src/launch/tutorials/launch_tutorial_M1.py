@@ -250,7 +250,7 @@ def run_additional_commands_in_tmux(session_id, commands, attach=False):
 
 
     for i, cmd in enumerate(commands, start=1):
-        subprocess.run(["tmux", "split-window", "-d", "-t", session_name, cmd], check=True)
+        subprocess.run(["tmux", "split-window", "-t", session_name, cmd], check=True)
         subprocess.run(["tmux", "select-layout", "-t", session_name, "tiled"], check=True)
 
         print(f"Launched extra command in new pane: {cmd}")
@@ -259,7 +259,6 @@ def run_additional_commands_in_tmux(session_id, commands, attach=False):
     if attach:
         print(f"Attaching to tmux session '{session_name}'...")
         subprocess.run(["tmux", "attach-session", "-t", session_name])
-
 
 def main():
     # --- CLI argument: world name ---
@@ -408,7 +407,9 @@ def main():
         "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock --ros-args -p use_sim_time:=true",
 
         # 4. Static TF: Connect drone base_link to the lidar frame - to hide in tmux because useless to see
-        cmd_static_tf_lidar
+        cmd_static_tf_lidar,
+
+        "python3 src/launch/tutorials/scan_stabilizer.py --ros-args -p z_threshold:=0.15 -p use_sim_time:=true"
     ]
     # Launch “hidden” bridge/TF commands first in detached panes, then attach for display commands.
     run_additional_commands_in_tmux(session_id=1, commands=additional_cmds_hidden, attach=False)
