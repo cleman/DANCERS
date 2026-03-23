@@ -5,6 +5,7 @@
 #include <px4_msgs/msg/trajectory_setpoint.hpp>
 #include <px4_msgs/msg/vehicle_command.hpp>
 #include <px4_msgs/msg/vehicle_status.hpp>
+#include <px4_msgs/msg/vehicle_local_position.hpp>
 
 // ROS2 messages
 #include <geometry_msgs/msg/point.hpp>
@@ -25,6 +26,10 @@ public:
         this->declare_parameter("robot_name", "px4_1", param_desc);
 
         this->robot_name = this->get_parameter("robot_name").get_parameter_value().get<std::string>();
+
+        // Mode definition
+        this->declare_parameter("control_mode", "offboard");
+        this->control_mode = this->get_parameter("control_mode").as_string();
         
         // Find the robot ID in the name (robot name must have the form <...>_<ID>)
         try
@@ -67,10 +72,20 @@ public:
                 this->create_publisher<px4_msgs::msg::TrajectorySetpoint>(
                     px4_namespace + "/fmu/in/trajectory_setpoint", 
                     qos_pub);
+        // ROS Param
         this->vehicle_command_publisher_ = 
                 this->create_publisher<px4_msgs::msg::VehicleCommand>(
                     px4_namespace + "/fmu/in/vehicle_command",
                     qos_pub);
+        // 
+        this->local_pos_sub_ = this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
+            px4_namespace + "/fmu/out/vehicle_local_position",
+            qos_sub,
+            std::bind(&WaypointControl::local_pos_clbk, this, _1));
+
+        // Callback to handle dynamic control mode switching
+        callback_handle_ = this->add_on_set_parameters_callback(
+            std::bind(&WaypointControl::parameters_callback, this, std::placeholders::_1));
 
         // Set a 10 Hz control loop period
         this->timer_period_ = std::chrono::microseconds(100000);
@@ -78,6 +93,10 @@ public:
         // Start the command loop
         this->timer_ = this->create_wall_timer(timer_period_, std::bind(&WaypointControl::cmd_loop_clbk, this));
     }
+
+    // Variables to handle dynamic control mode switching
+    OnSetParametersCallbackHandle::SharedPtr callback_handle_;
+    rcl_interfaces::msg::SetParametersResult parameters_callback(const std::vector<rclcpp::Parameter> &parameters);
 
 private:
 
@@ -89,6 +108,7 @@ private:
 
     uint8_t nav_state_;                              //!< navigation state of the PX4 robot
     uint8_t arming_state_;                           //!< arming state of the PX4 robot
+    std::string control_mode;                       //!< control mode to switch to (offboard, position_control, velocity_control, etc.)
 
     geometry_msgs::msg::Point current_waypoint = geometry_msgs::msg::Point();     //!< the currently followed waypoint
     double theta = 0;
@@ -114,6 +134,10 @@ private:
 
     // util
     Eigen::Vector3d ENU_to_NED(Eigen::Vector3d vec);
+
+    rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr local_pos_sub_;
+    px4_msgs::msg::VehicleLocalPosition current_pos;
+    void local_pos_clbk(const px4_msgs::msg::VehicleLocalPosition & msg);
 
 };
 
@@ -170,6 +194,11 @@ void WaypointControl::cmd_loop_clbk()
     // The VehicleCommand (uOrb messages) correspond to the equivalent MAVLink messages
     // See https://docs.px4.io/main/en/msg_docs/VehicleCommand#vehiclecommand-uorb-message
     // and https://mavlink.io/en/messages/common.html#MAV_CMD_DO_SET_MODE
+
+    if (this->control_mode == "position") {
+        return;
+    }
+
     if(this->nav_state_ != px4_msgs::msg::VehicleStatus::NAVIGATION_STATE_OFFBOARD || this->arming_state_ != px4_msgs::msg::VehicleStatus::ARMING_STATE_ARMED){
         // engage the offboard control mode
         publish_vehicle_command(px4_msgs::msg::VehicleCommand::VEHICLE_CMD_DO_SET_MODE, 1.0, 6.0, this->robot_id);
@@ -258,6 +287,40 @@ void WaypointControl::publish_vehicle_command(uint16_t command, float param1, fl
 	msg.from_external = true;
 	msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
 	this->vehicle_command_publisher_->publish(msg);
+}
+
+/**
+ * @brief Callback to handle dynamic control mode switching
+ */
+rcl_interfaces::msg::SetParametersResult WaypointControl::parameters_callback(const std::vector<rclcpp::Parameter> &parameters)
+{
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    for (const auto &param : parameters) {
+        if (param.get_name() == "control_mode") {
+            std::string new_mode = param.as_string();
+            
+            // SI on passe en offboard : on initialise avec la position actuelle
+            if (new_mode == "offboard" && this->control_mode == "position") {
+                this->current_waypoint.x = this->current_pos.y;
+                this->current_waypoint.y = this->current_pos.x;
+                this->current_waypoint.z = -this->current_pos.z;
+                RCLCPP_INFO(this->get_logger(), "Passage en OFFBOARD: Initialisation sur position actuelle (%f, %f, %f)", 
+                            this->current_pos.x, this->current_pos.y, this->current_pos.z);
+            }
+            
+            this->control_mode = new_mode;
+            RCLCPP_INFO(this->get_logger(), "Mode de contrôle changé en : %s", this->control_mode.c_str());
+        }
+    }
+    return result;
+}
+
+/**
+ * 
+ */
+void WaypointControl::local_pos_clbk(const px4_msgs::msg::VehicleLocalPosition & msg) {
+    this->current_pos = msg;
 }
 
 int main(int argc, char **argv)

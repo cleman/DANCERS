@@ -397,8 +397,8 @@ def main():
     cmd_bridge_scan = f"sleep 15 && ros2 run ros_gz_bridge parameter_bridge /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true"
     cmd_static_tf_lidar = f"ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 {robot_name}_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true"
     
-    additional_cmds_display = [
-        f"ros2 run px4_control waypoint_control --ros-args -p robot_name:=px4_{i} -p use_sim_time:=true" for i in range(base_params["robots_number"])
+    additional_cmds = [
+        f"ros2 run px4_control waypoint_control --ros-args -p robot_name:=px4_{i} -p control_mode:=offboard -p use_sim_time:=true" for i in range(base_params["robots_number"])
     ] + [
         "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock --ros-args -p use_sim_time:=true",
 
@@ -433,7 +433,7 @@ def main():
         #f"python3 src/launch/tutorials/scan_stabilizer.py --ros-args -p z_threshold:=0.15 -p use_sim_time:=true"
     ]
     #run_additional_commands_in_tmux(session_id=1, commands=cmd_background, attach=True)
-    run_additional_commands_in_tmux(session_id=1, commands=additional_cmds_display, attach=True)
+    run_additional_commands_in_tmux(session_id=1, commands=additional_cmds, attach=True)
 
 if __name__ == "__main__":
     main()
