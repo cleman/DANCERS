@@ -278,69 +278,7 @@ def run_additional_commands_in_tmux(session_id, commands, attach=False):
         print(f"Attaching to tmux session '{session_name}'...")
         subprocess.run(["tmux", "attach-session", "-t", session_name])
 
-def run_commands_in_background(session_id, commands):
-    """
-    Lance les commandes en arrière-plan avec nettoyage préventif.
-    Cible les processus 'hidden' comme les bridges et les static TFs.
-    """
-    global background_processes
-    env = os.environ.copy()
-    env["ROS_DOMAIN_ID"] = str(session_id)
-    
-    # Configuration des dossiers de logs
-    log_dir = "dancers_data/logs"
-    os.makedirs(log_dir, exist_ok=True)
-
-    # --- 1. NETTOYAGE DES ANCIENS PROCESSUS ---
-    print("Nettoyage des anciens processus et de la mémoire partagée...")
-    # Tue les processus par nom pour éviter les doublons invisibles
-    process_names = ["ros_gz_bridge", "static_transform_publisher", "scan_stabilizer.py", "gz_pose_relay.py"]
-    for name in process_names:
-        subprocess.run(["pkill", "-f", name], stderr=subprocess.DEVNULL)
-    
-    # --- 2. NETTOYAGE CRITIQUE DE FASTDDS (Erreur /map) ---
-    # On supprime les fichiers de segments SHM qui restent bloqués après un crash
-    shm_path = "/dev/shm"
-    if os.path.exists(shm_path):
-        try:
-            for filename in os.listdir(shm_path):
-                if "fastdds" in filename.lower():
-                    file_path = os.path.join(shm_path, filename)
-                    os.remove(file_path)
-        except Exception as e:
-            print(f"Note: Erreur lors du nettoyage de /dev/shm : {e}")
-
-    # --- 3. LANCEMENT DES COMMANDES ---
-    for i, cmd in enumerate(commands):
-        # Création d'un fichier log unique par commande
-        log_file = open(f"{log_dir}/background_cmd_{i}.log", "w")
-        
-        # Utilisation de shell=True pour supporter les redirections ROS 2 complexes
-        # preexec_fn=os.setpgrp est vital pour pouvoir tuer tout le groupe plus tard
-        p = subprocess.Popen(
-            cmd, 
-            env=env, 
-            stdout=log_file, 
-            stderr=log_file, 
-            shell=True,
-            preexec_fn=os.setpgrp 
-        )
-        
-        background_processes.append(p)
-        
-        # Extraction du nom simplifié pour l'affichage (ex: ros2 run package node -> node)
-        short_name = cmd.split()[2] if len(cmd.split()) > 2 else "cmd"
-        print(f"Lancement background [PID {p.pid}]: {short_name}")
-    
-    return background_processes
-
 def main():
-    # Enregistre le nettoyage à la sortie normale du script
-    atexit.register(cleanup_processes)
-    # Enregistre le nettoyage si on fait Ctrl+C dans le terminal
-    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
-    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
-
     # --- CLI argument: world name ---
     parser = argparse.ArgumentParser(description="DANCERS tutorial M1 launcher")
     parser.add_argument(
@@ -456,9 +394,22 @@ def main():
 
     slam_params_path = os.path.abspath("src/launch/tutorials/slam_params.yaml")
     
+    cmd_bridge_scan = f"sleep 15 && ros2 run ros_gz_bridge parameter_bridge /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true"
+    cmd_static_tf_lidar = f"ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 {robot_name}_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true"
+    
     additional_cmds_display = [
         f"ros2 run px4_control waypoint_control --ros-args -p robot_name:=px4_{i} -p use_sim_time:=true" for i in range(base_params["robots_number"])
     ] + [
+        "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock --ros-args -p use_sim_time:=true",
+
+        # 1. Bridge the Lidar Scan (GZ -> ROS /scan) to hide in tmux because useless to see
+        cmd_bridge_scan,
+
+        # 4. Static TF: Connect drone base_link to the lidar frame - to hide in tmux because useless to see
+        cmd_static_tf_lidar,
+
+        f"sleep 15 && python3 src/launch/tutorials/scan_stabilizer.py --ros-args -p use_sim_time:=true -p z_threshold:=0.15",
+
         # 3. Run the custom gz_pose_relay to publish the drone pose as TF (no bridge, direct gz-transport subscription) to hide in tmux because useless to see
         f"python3 src/launch/tutorials/gz_pose_relay.py --ros-args -p gz_world:={world_name} -p target_model:={robot_name}_0 -p parent_frame:=world -p child_frame:={robot_name}_0/link/base_link -p use_sim_time:=true",
         
@@ -469,19 +420,6 @@ def main():
         "MicroXRCEAgent udp4 -p 8888"
     ]
 
-    cmd_clock = [
-        # 2. Bridge the Clock (Necessary for sim_time synchronization) to hide in tmux because useless to see
-        "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock --ros-args -p use_sim_time:=true"
-    ]
-
-    cmd_bridge_scan = ""
-    cmd_static_tf_lidar = ""
-    if robot_name == "x500_gimbal_lidar":
-        cmd_bridge_scan = f"ros2 run ros_gz_bridge parameter_bridge /world/{world_name}/model/x500__gimbal_lidar_2d_0/link/lidar_link/sensor/lidar/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{world_name}/model/x500_gimbal_lidar_0/link/lidar_link/sensor/lidar/scan:=/scan -p use_sim_time:=true"
-        cmd_static_tf_lidar = f"ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 {robot_name}_0/link/base_link x500__gimbal_lidar_2d_0/lidar_link/lidar --ros-args -p use_sim_time:=true"
-    elif robot_name == "x500_lidar_2d":
-        cmd_bridge_scan = f"ros2 run ros_gz_bridge parameter_bridge /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true"
-        cmd_static_tf_lidar = f"ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 {robot_name}_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true"
 
     cmd_background = [
         "ros2 run ros_gz_bridge parameter_bridge /clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock --ros-args -p use_sim_time:=true",
@@ -492,10 +430,9 @@ def main():
         # 4. Static TF: Connect drone base_link to the lidar frame - to hide in tmux because useless to see
         cmd_static_tf_lidar,
 
-        #"python3 src/launch/tutorials/scan_stabilizer.py --ros-args -p z_threshold:=0.15 -p use_sim_time:=true"
+        #f"python3 src/launch/tutorials/scan_stabilizer.py --ros-args -p z_threshold:=0.15 -p use_sim_time:=true"
     ]
-    #run_commands_in_background(session_id=1, commands=cmd_clock)
-    run_commands_in_background(session_id=1, commands=cmd_background)
+    #run_additional_commands_in_tmux(session_id=1, commands=cmd_background, attach=True)
     run_additional_commands_in_tmux(session_id=1, commands=additional_cmds_display, attach=True)
 
 if __name__ == "__main__":

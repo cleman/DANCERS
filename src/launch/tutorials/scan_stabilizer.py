@@ -63,10 +63,12 @@ class ScanStabilizer(Node):
             tf = self.tf_buffer.lookup_transform(
                 'world', 
                 msg.header.frame_id, 
-                msg.header.stamp)
+                rclpy.time.Time())
         except Exception as e:
             self.get_logger().warn(f"TF lookup failed: {e}")
             return
+        
+        self.get_logger().info("TF OK")
         
         # --- Pose Drone ---
         pos = np.array([
@@ -93,6 +95,7 @@ class ScanStabilizer(Node):
         
         # Filter valid ranges
         valid = np.isfinite(ranges) & (ranges > msg.range_min)
+        self.get_logger().info(f"Points valides: {np.sum(valid)}/{len(ranges)}")
         if np.sum(valid) == 0:
             return
         
@@ -109,7 +112,9 @@ class ScanStabilizer(Node):
         P_world = (mat_rot @ P_lidar)[:3, :] + pos.reshape(3, 1)  # (3, N)
 
         # Z-filter
-        mask = P_world[2, :] > self.z_threshold
+        z_cutoff = min(pos[2]-self.z_threshold, self.z_threshold)  # Seuil dynamique basé sur la hauteur du drone
+        mask = P_world[2, :] > z_cutoff
+        self.get_logger().info(f"Points au-dessus z_threshold ({z_cutoff}m): {np.sum(mask)}")
         if np.sum(mask) == 0:
             return
         
@@ -150,7 +155,7 @@ class ScanStabilizer(Node):
         out = deepcopy(msg)
         out.header.frame_id = "x500_lidar_2d_0/link/base_link_stabilized" # Nom de la frame créée dans le relay
         out.ranges = new_ranges.tolist()
-
+        self.get_logger().info(f"Publication de {len(new_ranges)} ranges")
         self.pub.publish(out)
 
 

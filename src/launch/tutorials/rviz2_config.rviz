@@ -106,12 +106,13 @@ Visualization Manager:
       Show Names: true
       Tree:
         map:
-          world:
-            x500_lidar_2d_0/link/base_link:
-              x500_lidar_2d_0/link/lidar_2d_v2:
-                {}
-            x500_lidar_2d_0/link/base_link_stabilized:
+          {}
+        world:
+          x500_lidar_2d_0/link/base_link:
+            x500_lidar_2d_0/link/lidar_2d_v2:
               {}
+          x500_lidar_2d_0/link/base_link_stabilized:
+            {}
       Update Interval: 0
       Value: true
     - Alpha: 0.699999988079071
@@ -190,18 +191,18 @@ Visualization Manager:
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.8451663851737976
-        Y: 0.26987382769584656
-        Z: 5.398477077484131
+        X: -1.357962727546692
+        Y: -0.3424749970436096
+        Z: 3.479800224304199
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3547976315021515
+      Pitch: 0.45979753136634827
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.541718006134033
+      Yaw: 3.566718578338623
     Saved: ~
 Window Geometry:
   Displays:

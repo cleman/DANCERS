@@ -1,163 +1,81 @@
-header:
-  stamp:
-    sec: 93
-    nanosec: 556000000
-  frame_id: x500_lidar_2d_0/link/lidar_2d_v2
-height: 1
-width: 708
-fields:
-- name: x
-  offset: 0
-  datatype: 7
-  count: 1
-- name: y
-  offset: 4
-  datatype: 7
-  count: 1
-- name: z
-  offset: 8
-  datatype: 7
-  count: 1
-- name: intensity
-  offset: 12
-  datatype: 7
-  count: 1
-- name: index
-  offset: 16
-  datatype: 5
-  count: 1
-is_bigendian: false
-point_step: 20
-row_step: 14160
-data:
-- 29
-- 12
-- 100
-- 192
-- 14
-- 12
-- 100
-- 192
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 13
-- 127
-- 98
-- 192
-- 175
-- 123
-- 100
-- 192
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 1
-- 0
-- 0
-- 0
-- 32
-- 17
-- 97
-- 192
-- 130
-- 8
-- 101
-- 192
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 2
-- 0
-- 0
-- 0
-- 74
-- 153
-- 95
-- 192
-- 51
-- 137
-- 101
-- 192
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 3
-- 0
-- 0
-- 0
-- 154
-- 29
-- 94
-- 192
-- 195
-- 3
-- 102
-- 192
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 4
-- 0
-- 0
-- 0
-- 252
-- 189
-- 92
-- 192
-- 111
-- 153
-- 102
-- 192
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 0
-- 5
-- 0
-- 0
-- 0
-- 69
-- 6
-- 91
-- 192
-- 141
-- 208
-- 102
-- 192
-- '...'
-is_dense: false
+$ ros2 topic echo /fmu/out/vehicle_local_position --once
+timestamp: 1774256847673964
+timestamp_sample: 1774256847673964
+xy_valid: true
+z_valid: true
+v_xy_valid: true
+v_z_valid: true
+x: -0.015133081004023552
+y: -0.006001186557114124
+z: -0.008315563201904297
+delta_xy:
+- 2767.593017578125
+- 2597.42236328125
+xy_reset_counter: 4
+delta_z: -4.266689777374268
+z_reset_counter: 4
+vx: 0.015055131167173386
+vy: -0.002234916901215911
+vz: 0.009698882699012756
+z_deriv: 0.002513060113415122
+delta_vxy:
+- 0.28507256507873535
+- -0.32264354825019836
+vxy_reset_counter: 4
+delta_vz: -0.34430524706840515
+vz_reset_counter: 3
+ax: 0.011333700269460678
+ay: 0.008361093699932098
+az: 0.0059669832699000835
+heading: -0.0002097051910823211
+heading_var: 0.0006534616113640368
+unaided_heading: -2.46840763092041
+delta_heading: -0.11541326344013214
+heading_reset_counter: 2
+heading_good_for_control: true
+tilt_var: 8.912591147236526e-05
+xy_global: true
+z_global: true
+ref_timestamp: 41276000
+ref_lat: 47.39797104751755
+ref_lon: 8.546164183278249
+ref_alt: 4.266689777374268
+dist_bottom_valid: false
+dist_bottom: 4.50787353515625
+dist_bottom_var: 47.09058380126953
+delta_dist_bottom: -4.266689777374268
+dist_bottom_reset_counter: 4
+dist_bottom_sensor_bitfield: 0
+eph: 0.1518092304468155
+epv: 0.16640911996364594
+evh: 0.08698367327451706$ ros2 topic echo /fmu/in/trajectory_setpoint --once
+timestamp: 317064000
+position:
+- 0.0
+- 0.0
+- 0.0
+velocity:
+- .nan
+- .nan
+- .nan
+acceleration:
+- .nan
+- .nan
+- .nan
+jerk:
+- .nan
+- .nan
+- .nan
+yaw: 0.0
+yawspeed: 0.0
+evv: 0.05398944392800331
+dead_reckoning: false
+vxy_max: .inf
+vz_max: .inf
+hagl_min: .inf
+hagl_max_z: .inf
+hagl_max_xy: .inf
 ---
+
+ros2 topic echo /fmu/out/home_position --once
+Pas de réponse
