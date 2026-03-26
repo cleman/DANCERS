@@ -393,6 +393,7 @@ def main():
     launch_sim_components_in_tmux(configs_paths[0], network_package_node, physics_package_node, session_id=1, remain_on_exit=True, headless=True, attach=False)
 
     slam_params_path = os.path.abspath("src/launch/tutorials/slam_params.yaml")
+    nav2_params_path = os.path.abspath("src/launch/tutorials/nav2_params.yaml")
     
     cmd_bridge_scan = f"sleep 15 && ros2 run ros_gz_bridge parameter_bridge /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true"
     cmd_static_tf_lidar = f"ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 {robot_name}_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true"
@@ -415,6 +416,12 @@ def main():
         
         # 5. Launch SLAM Toolbox in online async mode - to hide in tmux because useless to see
         f"ros2 launch slam_toolbox online_async_launch.py slam_params_file:={slam_params_path} use_sim_time:=true",
+
+        # 6. Nav2 server
+        f"sleep 15 && ros2 run nav2_costmap_2d nav2_costmap_2d --ros-args --params-file {nav2_params_path} -r __node:=local_costmap -p use_sim_time:=true",
+
+        # 7. Nav2 costmap
+        "sleep 15 &&ros2 run nav2_lifecycle_manager lifecycle_manager --ros-args -p node_names:=['local_costmap'] -p autostart:=true -p bond_timeout:=4.0",
 
         "gz sim -g",    # -s to launch gz headless, -g to launch gz client (GUI)
         "MicroXRCEAgent udp4 -p 8888"

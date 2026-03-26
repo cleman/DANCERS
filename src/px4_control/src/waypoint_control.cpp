@@ -20,16 +20,16 @@ class WaypointControl : public rclcpp::Node
 public:
     WaypointControl() : rclcpp::Node("waypoint_control")
     {
+        // Mode definition
+        this->declare_parameter("control_mode", "offboard");
+        this->control_mode = this->get_parameter("control_mode").as_string();
+        
         // Declare the robot_id ROS2 parameter
         auto param_desc = rcl_interfaces::msg::ParameterDescriptor();
         param_desc.description = "Name of the robot. The topics are namespaced by this name, e.g. px4_1.";
         this->declare_parameter("robot_name", "px4_1", param_desc);
 
         this->robot_name = this->get_parameter("robot_name").get_parameter_value().get<std::string>();
-
-        // Mode definition
-        this->declare_parameter("control_mode", "offboard");
-        this->control_mode = this->get_parameter("control_mode").as_string();
         
         // Find the robot ID in the name (robot name must have the form <...>_<ID>)
         try
