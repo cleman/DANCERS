@@ -124,7 +124,7 @@ To send a single waypoint (x, y, z) to the drone:
 ros2 topic pub /px4_0/waypoint geometry_msgs/msg/Point "{x: 2.0, y: 3.0, z: 1.0}" --once
 ```
 
-### 4. Navigation & Mapping (Nav2)
+### 4. Local Mapping (Nav2)
 The simulation includes a local costmap for obstacle avoidance.
 
 * **Configuration file:** `src/launch/tutorials/nav2_params.yaml``(includes wall inflation parameters).
@@ -133,5 +133,9 @@ The simulation includes a local costmap for obstacle avoidance.
     * `/costmap`
     * `/costmap_update`
 
-### 5. Groudn Control Station
+### 5. Ground Control Station
 It is necessary to launch **QGroundControl** alongside the simultion to monitor the PX4 heartbeat, home setup, and flight modes.
+
+### 6. Global Mapping
+The simulation includes slam_toolbox tools to build a global map.
+The map is available on the topic `/map`.
