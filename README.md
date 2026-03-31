@@ -14,13 +14,13 @@ DANCERS was first introduced in [a conference paper at SIMPAR 2025](https://ieee
 
 ---
 
-## Installation -- Compile from source
+## Installation -- Compile from source
 
 These instructions are basically the content of the Dockerfile, but with more explanations. They were tested on Ubuntu 22.04 and Ubuntu 24.04.
 
 The easiest way to compile DANCERS is with the `colcon` tool from ROS2. 
 
-1. [Install ROS2](https://docs.ros.org/en/humble/Installation.html) (DANCERS was developed and tested with ROS2 Humble and ROS2 Kilted)
+1. [Install ROS2](https://docs.ros.org/en/humble/Installation.html) (DANCERS was developed and tested with ROS2 Humble and ROS2 Jazzy)
 2. Install dependencies
 ```sh
 sudo apt update && apt install -y --no-install-recommends git cmake wget lsb-release gnupg libqt5gui5 ubuntu-gnome-desktop g++ python3 freeglut3-dev tmux nano gdb
@@ -78,3 +78,60 @@ colcon build --cmake-args -DCMAKE_CXX_FLAGS='-w' --select-packages dancers_msgs
 cd sim_ws
 python3 src/launch/tutorials/launch_tutorial_1.py
 ```
+
+## Usage Guide
+
+### 1. Launching the simulation
+
+The main tutorial script handles the orchestration of Gazebo, PX4, SLAM and Nav2 components within a `tmux` session.
+
+**Launch without a specific world:**
+```sh
+python3 src/launch/tutorials/launch_tutorial_M1.py
+```
+
+**Launch with a specific world (e.g., "walls"):**
+```sh
+python3 src/launch/tutorials/launch_tutorial_M1.py -w walls
+```
+
+Worlds file are located in: `src/physics_connector/Gazebo/worlds`.
+
+### 2. Managing the Environment (Tmux)
+
+The simulation runs multiple processes in a `tmux` session named `dancers_1`.
+* **Detach from session:** `Ctrl+b` then `d`
+* **Reattach to session:** `tmux attach-session -t dancers_1`
+* **Kill the session:** `tmux kill-session -t dancers_1`
+
+### 3. Drone Control & Modes
+The default mode is `Offboard`. \
+You can switch how the drone is controlled via ROS2 parameters:
+
+* **Position Mode (Manuel/Controller):**
+```sh
+ros2 param set /waypoint_control control_mode position
+```
+
+* **Offboard Mode (Computer/Autonomous):**
+```sh
+roos2 param set /waypoint_control control_mode offboard
+```
+
+**Sending a Waypoint Command:**
+To send a single waypoint (x, y, z) to the drone:
+```sh
+ros2 topic pub /px4_0/waypoint geometry_msgs/msg/Point "{x: 2.0, y: 3.0, z: 1.0}" --once
+```
+
+### 4. Navigation & Mapping (Nav2)
+The simulation includes a local costmap for obstacle avoidance.
+
+* **Configuration file:** `src/launch/tutorials/nav2_params.yaml``(includes wall inflation parameters).
+
+* **Costmap Topics:** You can visualize or access the costmap via:
+    * `/costmap`
+    * `/costmap_update`
+
+### 5. Groudn Control Station
+It is necessary to launch **QGroundControl** alongside the simultion to monitor the PX4 heartbeat, home setup, and flight modes.
