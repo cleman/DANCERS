@@ -23,22 +23,33 @@ The easiest way to compile DANCERS is with the `colcon` tool from ROS2.
 1. [Install ROS2](https://docs.ros.org/en/humble/Installation.html) (DANCERS was developed and tested with ROS2 Humble and ROS2 Jazzy)
 2. Install dependencies
 ```sh
-sudo apt update && apt install -y --no-install-recommends git cmake wget lsb-release gnupg libqt5gui5 ubuntu-gnome-desktop g++ python3 freeglut3-dev tmux nano gdb
+sudo apt update && sudo apt install -y --no-install-recommends git cmake wget lsb-release gnupg libqt5gui5 ubuntu-gnome-desktop g++ python3 freeglut3-dev tmux nano gdb
+sudo apt install ros-jazzy-ros-gz-bridge \
+                 ros-jazzy-nav2-costmap-2d \
+                 ros-jazzy-nav2-lifecycle-manager \
+                 ros-jazzy-slam-toolbox \
+                 ros-jazzy-tf2-ros \
+                 ros-jazzy-tf-transformations
 ```
-3. If you wish to use Gazebo, install it (DANCERS was developed and tested with Gazebo Garden and Harmonic)
+3. Install Gazebo (DANCERS was developed and tested with Gazebo Garden and Harmonic)
 ```sh
 sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg 
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
 sudo apt update && sudo apt install -y \
+
+sudo apt install libgz-transport14-dev python3-gz-transport14 python3-gz-msgs12
+sudo apt install ros-jazzy-ros-gz-sim ros-jazzy-gz-sim-vendor
     gz-harmonic
 ```
-4. If you wish to use the PX4 Autopilot, install it (DANCERS was developed and tested with PX4 1.14 and 1.16)
+4. Install PX4 Autopilot (DANCERS was developed and tested with PX4 1.14 and 1.16)
 ```sh
+cd ~
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive --branch release/1.16
 
 # If you want to use Gazebo Harmonic with the PX4 Autopilot, you need this commit, but it is not needed for Gazebo Garden:
+cd PX4-Autopilot
 git fetch https://github.com/jmackay2/PX4-Autopilot.git fix_gazebo_harmonic:fix_gazebo_harmonic
-git cherry-pick bf4408b772f2bc398a5398dabd4bfa67a96ec1b5
+git cherry-pick -X theirs bf4408b772f2bc398a5398dabd4bfa67a96ec1b5
 
 cd PX4-Autopilot 
 
@@ -46,32 +57,42 @@ cd PX4-Autopilot
 
 make px4_sitl_default
 
+cd ~
+
 # Install MicroXRCE-DDS Agent
 git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
     cd Micro-XRCE-DDS-Agent && \
     mkdir build && \
     cd build && \
     cmake .. && \
-    make && \
-    make install && \
-    ldconfig /usr/local/lib/
+    make
+sudo make install
+sudo ldconfig /usr/local/lib/
 ```
-5. Source ROS2 in the `.bashrc`
+
+5. Ground Control Station
+
+Install [QGroundControl](https://docs.qgroundcontrol.com/Stable_V5.0/en/qgc-user-guide/getting_started/download_and_install.html). \
+It is necessary to launch **QGroundControl** alongside the simultion to monitor the PX4 heartbeat, home setup, and flight modes.
+
+6. Source ROS2 in the `.bashrc`
 ```sh
-echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
-    echo "source /home/$USERNAME/sim_ws/install/setup.bash" >> ~/.bashrc
+echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc && \
+    echo "source /home/$USERNAME/sim_ws/install/setup.bash" >> ~/.bashrc && \
+    echo "export GZ_SIM_RESSOURCE_PATH=/home/$USERNAME/PX4-Autopilot/Tools/simulation/gz/models" >> ~/.bashrc && \
+    echo "export ROS_WS=/home/$USERNAME/sim_ws" >> ~/.bashrc && \
+    echo "export GZ_CONFIG_PATH=/usr/share/gz:$GZ_CONFIG_PATH" >> ~/.bashrc
 ```
-6. Build DANCERS
+7. Build DANCERS
 ```sh
-git clone -b v1.0 https://github.com/Chroma-CITI/DANCERS sim_ws --recursive
+git clone -b master-etudiants https://github.com/cleman/DANCERS.git sim_ws --recursive
 cd sim_ws
+colcon build --cmake-args -DCMAKE_CXX_FLAGS='-w' --packages-select dancers_msgs
 colcon build --cmake-args -DCMAKE_CXX_FLAGS='-w'
-export GZ_SIM_RESOURCE_PATH=/home/$USERNAME/PX4-Autopilot/Tools/simulation/gz/models 
-export ROS_WS=/home/$USERNAME/sim_ws
 ```
 If you have a with the first build, try to start only with dancers_msgs
 ```bash
-colcon build --cmake-args -DCMAKE_CXX_FLAGS='-w' --select-packages dancers_msgs
+
 ```
 7. Finally, you can test if DANCERS was properly installed by running the tutorials:
 ```sh
@@ -112,7 +133,7 @@ The simulation runs multiple processes in a `tmux` session named `dancers_1`.
 The default mode is `Offboard`. \
 You can switch how the drone is controlled via ROS2 parameters:
 
-* **Position Mode (Manuel/Controller):**
+* **Position Mode (Manual/Controller):**
 ```sh
 ros2 param set /waypoint_control control_mode position
 ```
@@ -137,9 +158,6 @@ The simulation includes a local costmap for obstacle avoidance.
     * `/costmap`
     * `/costmap_update`
 
-### 5. Ground Control Station
-It is necessary to launch **QGroundControl** alongside the simultion to monitor the PX4 heartbeat, home setup, and flight modes.
-
-### 6. Global Mapping
+### 5. Global Mapping
 The simulation includes slam_toolbox tools to build a global map.
 The map is available on the topic `/map`.
