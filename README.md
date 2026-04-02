@@ -20,7 +20,7 @@ These instructions are basically the content of the Dockerfile, but with more ex
 
 The easiest way to compile DANCERS is with the `colcon` tool from ROS2. 
 
-1. [Install ROS2](https://docs.ros.org/en/humble/Installation.html) (DANCERS was developed and tested with ROS2 Humble and ROS2 Jazzy)
+1. [Install ROS2](https://docs.ros.org/en/jazzy/Installation.html) (DANCERS was developed and tested with ROS2 Humble and ROS2 Jazzy)
 2. Install dependencies
 ```sh
 sudo apt update && sudo apt install -y --no-install-recommends git cmake wget lsb-release gnupg libqt5gui5 ubuntu-gnome-desktop g++ python3 freeglut3-dev tmux nano gdb
@@ -90,10 +90,7 @@ cd sim_ws
 colcon build --cmake-args -DCMAKE_CXX_FLAGS='-w' --packages-select dancers_msgs
 colcon build --cmake-args -DCMAKE_CXX_FLAGS='-w'
 ```
-If you have a with the first build, try to start only with dancers_msgs
-```bash
 
-```
 7. Finally, you can test if DANCERS was properly installed by running the tutorials:
 ```sh
 cd sim_ws
