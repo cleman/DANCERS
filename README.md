@@ -94,6 +94,10 @@ python3 src/launch/tutorials/launch_tutorial_M1.py
 ```sh
 python3 src/launch/tutorials/launch_tutorial_M1.py -w walls
 ```
+Another example with a personalized world (Centrale Nantes Campus):
+```sh
+python3 src/launch/tutorials/launch_tutorial_M1.py -w ecn_campus/model
+```
 
 Worlds file are located in: `src/physics_connector/Gazebo/worlds`.
 

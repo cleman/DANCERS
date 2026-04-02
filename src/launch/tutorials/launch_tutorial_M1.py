@@ -291,6 +291,12 @@ def main():
     args = parser.parse_args()
     world_name = args.world
 
+    # Parse world name. Keep word before "/" if format is "world_name/model"
+    if "/" in world_name:
+        parsed_world_name = world_name.split("/")[0]
+    else:
+        parsed_world_name = world_name
+
     #robot_name = "x500_gimbal_lidar"
     robot_name = "x500_lidar_2d"
 
@@ -395,7 +401,7 @@ def main():
     slam_params_path = os.path.abspath("src/launch/tutorials/slam_params.yaml")
     nav2_params_path = os.path.abspath("src/launch/tutorials/nav2_params.yaml")
     
-    cmd_bridge_scan = f"sleep 15 && ros2 run ros_gz_bridge parameter_bridge /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true"
+    cmd_bridge_scan = f"sleep 15 && ros2 run ros_gz_bridge parameter_bridge /world/{parsed_world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{parsed_world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true"
     cmd_static_tf_lidar = f"ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 {robot_name}_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true"
     
     additional_cmds = [
@@ -412,7 +418,7 @@ def main():
         f"sleep 15 && python3 src/launch/tutorials/scan_stabilizer.py --ros-args -p use_sim_time:=true -p z_threshold:=0.15",
 
         # 3. Run the custom gz_pose_relay to publish the drone pose as TF (no bridge, direct gz-transport subscription) to hide in tmux because useless to see
-        f"python3 src/launch/tutorials/gz_pose_relay.py --ros-args -p gz_world:={world_name} -p target_model:={robot_name}_0 -p parent_frame:=world -p child_frame:={robot_name}_0/link/base_link -p use_sim_time:=true",
+        f"python3 src/launch/tutorials/gz_pose_relay.py --ros-args -p gz_world:={parsed_world_name} -p target_model:={robot_name}_0 -p parent_frame:=world -p child_frame:={robot_name}_0/link/base_link -p use_sim_time:=true",
         
         # 5. Launch SLAM Toolbox in online async mode - to hide in tmux because useless to see
         f"ros2 launch slam_toolbox online_async_launch.py slam_params_file:={slam_params_path} use_sim_time:=true",

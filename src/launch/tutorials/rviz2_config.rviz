@@ -70,7 +70,7 @@ Visualization Manager:
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.009999999776482582
+      Size (m): 0.10000000149011612
       Style: Flat Squares
       Topic:
         Depth: 5
@@ -106,13 +106,12 @@ Visualization Manager:
       Show Names: true
       Tree:
         map:
-          {}
-        world:
-          x500_lidar_2d_0/link/base_link:
-            x500_lidar_2d_0/link/lidar_2d_v2:
+          world:
+            x500_lidar_2d_0/link/base_link:
+              x500_lidar_2d_0/link/lidar_2d_v2:
+                {}
+            x500_lidar_2d_0/link/base_link_stabilized:
               {}
-          x500_lidar_2d_0/link/base_link_stabilized:
-            {}
       Update Interval: 0
       Value: true
     - Alpha: 0.699999988079071
@@ -207,25 +206,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 11.418341636657715
+      Distance: 54.66942596435547
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -1.2061238288879395
-        Y: -0.30901026725769043
-        Z: 3.7870030403137207
+        X: 10.757518768310547
+        Y: 0.6993682384490967
+        Z: 16.249805450439453
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6297973990440369
+      Pitch: 0.9097972512245178
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.581718921661377
+      Yaw: 3.386715888977051
     Saved: ~
 Window Geometry:
   Displays:
