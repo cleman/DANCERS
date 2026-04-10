@@ -16,11 +16,9 @@ DANCERS was first introduced in [a conference paper at SIMPAR 2025](https://ieee
 
 ## Installation -- Compile from source
 
-These instructions are basically the content of the Dockerfile, but with more explanations. They were tested on Ubuntu 22.04 and Ubuntu 24.04.
+These instructions on Ubuntu 24.04.
 
-The easiest way to compile DANCERS is with the `colcon` tool from ROS2. 
-
-1. [Install ROS2](https://docs.ros.org/en/jazzy/Installation.html) (DANCERS was developed and tested with ROS2 Humble and ROS2 Jazzy)
+1. [Install ROS2](https://docs.ros.org/en/jazzy/Installation.html) (DANCERS was developed and tested with ROS2 Jazzy)
 2. Install dependencies
 ```sh
 sudo apt update && sudo apt install -y --no-install-recommends git cmake wget lsb-release gnupg libqt5gui5 ubuntu-gnome-desktop g++ python3 freeglut3-dev tmux nano gdb
@@ -38,8 +36,7 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-
 sudo apt update && sudo apt install -y \
 
 sudo apt install libgz-transport14-dev python3-gz-transport14 python3-gz-msgs12
-sudo apt install ros-jazzy-ros-gz-sim ros-jazzy-gz-sim-vendor
-    gz-harmonic
+sudo apt install ros-jazzy-ros-gz-sim ros-jazzy-gz-sim-vendor gz-harmonic
 ```
 4. Install PX4 Autopilot (DANCERS was developed and tested with PX4 1.14 and 1.16)
 ```sh
@@ -73,7 +70,7 @@ sudo ldconfig /usr/local/lib/
 5. Ground Control Station
 
 Install [QGroundControl](https://docs.qgroundcontrol.com/Stable_V5.0/en/qgc-user-guide/getting_started/download_and_install.html). \
-It is necessary to launch **QGroundControl** alongside the simultion to monitor the PX4 heartbeat, home setup, and flight modes.
+It is necessary to launch **QGroundControl** alongside the simulation to monitor the PX4 heartbeat, home setup, and flight modes.
 
 6. Source ROS2 in the `.bashrc`
 ```sh
@@ -81,7 +78,8 @@ echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc && \
     echo "source /home/$USERNAME/sim_ws/install/setup.bash" >> ~/.bashrc && \
     echo "export GZ_SIM_RESSOURCE_PATH=/home/$USERNAME/PX4-Autopilot/Tools/simulation/gz/models" >> ~/.bashrc && \
     echo "export ROS_WS=/home/$USERNAME/sim_ws" >> ~/.bashrc && \
-    echo "export GZ_CONFIG_PATH=/usr/share/gz:$GZ_CONFIG_PATH" >> ~/.bashrc
+    echo "export GZ_CONFIG_PATH=/usr/share/gz:$GZ_CONFIG_PATH" >> ~/.bashrc && \
+    echo "export ROS_DOMAIN_ID=1" >> ~/.bashrc
 ```
 7. Build DANCERS
 ```sh
@@ -158,3 +156,6 @@ The simulation includes a local costmap for obstacle avoidance.
 ### 5. Global Mapping
 The simulation includes slam_toolbox tools to build a global map.
 The map is available on the topic `/map`.
+
+**Remark:** \
+The ROS2 environment runs into the ROS_DOMAIN_ID 1. By default this parameter is set to 0. A command above set the parameter modification in the .bashrc file.
