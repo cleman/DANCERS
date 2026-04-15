@@ -400,6 +400,7 @@ def main():
 
     slam_params_path = os.path.abspath("src/launch/tutorials/slam_params.yaml")
     nav2_params_path = os.path.abspath("src/launch/tutorials/nav2_params.yaml")
+    json_points_path = os.path.abspath(f"src/physics_connectors/Gazebo/worlds/{parsed_world_name}/target_points.json")
     
     cmd_bridge_scan = f"sleep 15 && ros2 run ros_gz_bridge parameter_bridge /world/{parsed_world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan --ros-args -r /world/{parsed_world_name}/model/x500_lidar_2d_0/link/link/sensor/lidar_2d_v2/scan:=/scan -p use_sim_time:=true"
     cmd_static_tf_lidar = f"ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 {robot_name}_0/link/base_link x500_lidar_2d_0/link/lidar_2d_v2 --ros-args -p use_sim_time:=true"
@@ -428,6 +429,9 @@ def main():
 
         # 7. Nav2 costmap
         "sleep 15 &&ros2 run nav2_lifecycle_manager lifecycle_manager --ros-args -p node_names:=['local_costmap'] -p autostart:=true -p bond_timeout:=4.0",
+
+        # 8. Scenario manager to publish random waypoints - to hide in tmux because useless to see
+        f"python3 src/launch/tutorials/scenarioManager.py --ros-args -p json_path:={json_points_path} -p use_sim_time:=true",
 
         "gz sim -g",    # -s to launch gz headless, -g to launch gz client (GUI)
         "MicroXRCEAgent udp4 -p 8888"
